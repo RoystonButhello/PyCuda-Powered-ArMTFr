@@ -3,21 +3,21 @@ import os                   # Path setting and file-retrieval
 import glob                 # File counting
 import random               # Obviously neccessary
 import numpy as np          # See above
-import CONFIG               # Module with Debug flags and other constants
+import CONFIG as cfg        # Module with Debug flags and other constants
 import hashlib              # For SHA256
 
 #PyCUDA Import
 import pycuda.autoinit
 from pycuda.compiler import SourceModule
 
-os.chdir(CONFIG.PATH)
+os.chdir(cfg.PATH)
 
 # Return SHA256 Hash of file as integer
 def sha2HashFile(filename):
     hashobj = hashlib.sha256()
     with open(filename,'rb') as f:
         while True:
-            block = f.read(CONFIG.BUFF_SIZE)
+            block = f.read(cfg.BUFF_SIZE)
             if not block:
                 break
             hashobj.update(block)
@@ -31,6 +31,16 @@ def sha2HashImage(img, N=256):
     hashobj.update(imgflat)
     return int(hashobj.hexdigest(),16)
 
+# Returns the estimated ArMap cycle length
+def ArMapLen(n):
+    x, y = random.randint(0,n), random.randint(0,n)
+    x1, y1 = (2*x+y)%n, (x+y)%n
+    iterations = 1
+    while x!=x1 and y!=y1:
+        x1, y1 = (2*x1+y1)%n, (x1+y1)%n
+        iterations += 1
+    return iterations
+
 # Arnold's Cat Map
 def ArCatMap(img_in):
     dim = img_in.shape
@@ -39,13 +49,13 @@ def ArCatMap(img_in):
 
     for x in range(N):
         for y in range(N):
-            img_out[x][y] = img_in[(2*x+y)%N][(x+y)%N]
+            img_out[x][y] = img_in[(x+y)%N][(2*x+y)%N]
 
     return img_out
 
 # Mersenne-Twister Intra-Column-Shuffle
 def MTShuffle(img_in, imghash):
-    mask = 2**CONFIG.MASK_BITS - 1   # Default: 8 bits
+    mask = 2**cfg.MASK_BITS - 1   # Default: 16 bits
     temphash = imghash
     dim = img_in.shape
     N = dim[0]
@@ -55,7 +65,7 @@ def MTShuffle(img_in, imghash):
         random.seed(temphash & mask)
         MTmap = list(range(N))
         random.shuffle(MTmap)
-        temphash = temphash>>CONFIG.MASK_BITS
+        temphash = temphash>>cfg.MASK_BITS
         if temphash==0:
             temphash = imghash
         for i in range(N):
@@ -65,7 +75,7 @@ def MTShuffle(img_in, imghash):
 
 # Mersenne-Twister Intra-Column-Shuffle
 def MTUnShuffle(img_in, imghash):
-    mask = 2**CONFIG.MASK_BITS - 1   # Default: 8 bits
+    mask = 2**cfg.MASK_BITS - 1   # Default: 8 bits
     temphash = imghash
     dim = img_in.shape
     N = dim[0]
@@ -75,7 +85,7 @@ def MTUnShuffle(img_in, imghash):
         random.seed(temphash & mask)
         MTmap = list(range(N))
         random.shuffle(MTmap)
-        temphash = temphash>>CONFIG.MASK_BITS
+        temphash = temphash>>cfg.MASK_BITS
         if temphash==0:
             temphash = imghash
         for i in range(N):
@@ -83,13 +93,13 @@ def MTUnShuffle(img_in, imghash):
             img_out[index][j] = img_in[i][j]
     return img_out
 
-#XOR Image with a Fractal
+# XOR Image with a Fractal
 def FracXor(img_in, imghash):
 
     #Select a file for use based on hash
     fileCount = len(glob.glob1("fractals","*.png"))
     fracID = (imghash % fileCount) + 1
-    filename = "fractals\\" + str(fracID) + ".png"
+    filename = cfg.FRAC + str(fracID) + ".png"
     #Read the file, resize it, then XOR
     fractal = cv2.imread(filename, 1)
     dim = img_in.shape
@@ -98,18 +108,25 @@ def FracXor(img_in, imghash):
 
     return img_out
 
-#Clear catmap debug files
-def CatmapClear():
-    files = os.listdir("catmap")
+# Create folder for intermediary files or clear it if it exists
+def TempClear():
+    files = os.listdir(cfg.TEMP)
     for f in files:
-        os.remove(os.path.join("catmap", f))
+        os.remove(os.path.join(cfg.TEMP, f))
+
+
+# Clear ArMap debug files
+def ArMapClear():
+    files = os.listdir(cfg.ARTEMP)
+    for f in files:
+        os.remove(os.path.join(cfg.ARTEMP, f))
         
-sm = SourceModule("""
+mod = SourceModule("""
     #include <stdint.h>
     __global__ void ArCatMap(uint8_t *in, uint8_t *out)
     {
-        int nx = (2*blockIdx.x + blockIdx.y) % gridDim.x;
-        int ny = (blockIdx.x + blockIdx.y) % gridDim.y;
+        int nx = (blockIdx.x + blockIdx.y) % gridDim.x;
+        int ny = (2*blockIdx.x + blockIdx.y) % gridDim.y;
         int blocksize = blockDim.x * blockDim.y * blockDim.z;
         int InDex = ((gridDim.x)*blockIdx.y + blockIdx.x) * blocksize  + threadIdx.x;
         int OutDex = ((gridDim.x)*ny + nx) * blocksize + threadIdx.x;
