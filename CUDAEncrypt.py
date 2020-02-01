@@ -27,33 +27,51 @@ def HistEQ(img_in):
         cv2.imshow('Histogram equalized', img_out)
     return img_out
 
+def PreProcess():
+    # Check if ./images directory exists
+    if not os.path.exists(cfg.SRC):
+        print("Input directory does not exist!")
+        raise SystemExit(0)
+    else:
+        if os.path.isfile(cfg.ENC_OUT):
+            os.remove(cfg.ENC_OUT)
+        if os.path.isfile(cfg.DEC_OUT):
+            os.remove(cfg.DEC_OUT)
+        
+    # Check if ./temp directory exists
+    if os.path.exists(cfg.TEMP):
+        cf.TempClear()
+    else:
+        os.makedirs(cfg.TEMP)
+
+    # Open Image
+    img = cv2.imread(cfg.ENC_IN, 1)
+    if img is None:
+        print("File does not exist!")
+        raise SystemExit(0)
+    dim = img.shape
+
+    # Write original dimensions to file and resize to square image if neccessary
+    with open(cfg.DIM, 'w+') as f:
+        f.write(str(dim[0]) + " " + str(dim[1]))
+    if dim[0]!=dim[1]:
+        N = max(dim[0], dim[1])
+        img = cv2.resize(img,(N,N), interpolation=cv2.INTER_LANCZOS4)
+        dim = img.shape
+
+    return img, dim 
+
 # Driver function
 def Encrypt():
     #Initialize Timer
     timer = np.zeros(5)
     overall_time = time.perf_counter()
     
-    # Check for intermediate directories
-    if not os.path.exists(cfg.TEMP):
-        os.makedirs(cfg.TEMP)
-
-    # Open Image
-    filename = cfg.IN
-    img = cv2.imread(filename, 1)
-    if img is None:
-        print("File does not exist!")
-        raise SystemExit(0)
-    dim = img.shape
-
-    # Check image dimensions
     timer[0] = overall_time
-    if dim[0]!=dim[1]:
-        N = min(dim[0], dim[1])
-        img = cv2.resize(img,(N,N))
-        dim = img.shape
-
     # Perform histogram equalization
-    imgEQ = HistEQ(img)
+    imgEQ, dim = PreProcess()
+    if cfg.DO_HISTEQ:
+        imgEQ = HistEQ(imgEQ)
     timer[0] = time.perf_counter() - timer[0]
     cv2.imwrite(cfg.HISTEQ, imgEQ)
     imgAr = imgEQ
@@ -62,14 +80,13 @@ def Encrypt():
     # Compute hash of imgEQ and write to text file
     imghash = cf.sha2HashImage(imgEQ)
     timer[1] = time.perf_counter() - timer[1]
-    f = open(cfg.HASH,"w+")
-    f.write(str(imghash))
-    f.close()
+    with open(cfg.HASH, 'w+') as f:
+        f.write(str(imghash))
     
-    #Clear catmap debug files
-    if cfg.DEBUG_CATMAP:
+    #Clear ArMap debug files
+    if cfg.DEBUG_ARMAP:
         if os.path.exists(cfg.ARTEMP):
-            cf.CatmapClear()
+            cf.ArMapClear()
         else:
             os.makedirs(cfg.ARTEMP)
     
@@ -78,16 +95,17 @@ def Encrypt():
     imgAr_In = np.asarray(imgAr).reshape(-1)
     gpuimgIn = cuda.mem_alloc(imgAr_In.nbytes)
     gpuimgOut = cuda.mem_alloc(imgAr_In.nbytes)
-    func = cf.sm.get_function("ArCatMap")
+    func = cf.mod.get_function("ArCatMap")
     
-    for i in range (1, random.randint(cfg.AR_MIN_ITER,cfg.AR_MAX_ITER)):
+    for i in range (1, int(cf.ArMapLen(dim[0])/2)):
         cuda.memcpy_htod(gpuimgIn, imgAr_In)
         func(gpuimgIn, gpuimgOut, grid=(dim[0],dim[1],1), block=(dim[2],1,1))
         cuda.memcpy_dtoh(imgAr_In, gpuimgOut)
         # Write intermediate files if debugging is enabled
-        if cfg.DEBUG_CATMAP:
+        if cfg.DEBUG_ARMAP:
             imgAr = (np.reshape(imgAr_In,dim)).astype(np.uint8)
             cv2.imwrite(cfg.ARTEMP + str(i) + ".png", imgAr)
+
     imgAr = (np.reshape(imgAr_In,dim)).astype(np.uint8)
     timer[2] = time.perf_counter() - timer[2]
     cv2.imwrite(cfg.ARMAP, imgAr)
@@ -103,6 +121,7 @@ def Encrypt():
     imgFr = cf.FracXor(imgMT, imghash)
     timer[4] = time.perf_counter() - timer[4]
     cv2.imwrite(cfg.XOR, imgFr)
+    cv2.imwrite(cfg.ENC_OUT, imgFr)
     overall_time = time.perf_counter() - overall_time
 
     # Print timing statistics

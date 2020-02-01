@@ -19,7 +19,7 @@ def Decrypt():
     overall_time = time.perf_counter()
 
     #Open the image
-    imgFr = cv2.imread(cfg.XOR, 1)
+    imgFr = cv2.imread(cfg.ENC_OUT, 1)
     if imgFr is None:
         print("File does not exist!")
         raise SystemExit(0)
@@ -42,18 +42,18 @@ def Decrypt():
     cv2.imwrite(cfg.UnMT, imgMT)
     imgAr = imgMT
 
-    #Clear catmap debug files
-    if cfg.DEBUG_CATMAP:
-        cf.CatmapClear()
+    #Clear ArMap debug files
+    if cfg.DEBUG_ARMAP:
+        cf.ArMapClear()
     
     timer[2] = time.perf_counter()
     # Ar Phase: Cat-map Iterations
-    cv2.imwrite(cfg.OUT, imgAr)
+    cv2.imwrite(cfg.DEC_OUT, imgAr)
     dim = imgAr.shape
     imgAr_In = np.asarray(imgAr).reshape(-1)
     gpuimgIn = cuda.mem_alloc(imgAr_In.nbytes)
     gpuimgOut = cuda.mem_alloc(imgAr_In.nbytes)
-    func = cf.sm.get_function("ArCatMap")
+    func = cf.mod.get_function("ArCatMap")
 
     while (cf.sha2HashImage(imgAr)!=srchash):
         cuda.memcpy_htod(gpuimgIn, imgAr_In)
@@ -61,7 +61,16 @@ def Decrypt():
         cuda.memcpy_dtoh(imgAr_In, gpuimgOut)
         imgAr = (np.reshape(imgAr_In,dim)).astype(np.uint8)
     timer[2] = time.perf_counter() - timer[2]
-    cv2.imwrite(cfg.OUT, imgAr)
+
+    # Read image dimensions from sent file and resize if change
+    f = open(cfg.DIM, "r")
+    y, x = [int(i) for i in next(f).split()]
+    f.close()
+
+    if x!=y:
+        imgAr = cv2.resize(imgAr,(x,y),interpolation=cv2.INTER_LANCZOS4)
+    cv2.imwrite(cfg.DEC_OUT, imgAr)
+
     overall_time = time.perf_counter() - overall_time
 
     # Print timing statistics

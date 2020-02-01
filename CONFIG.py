@@ -1,29 +1,40 @@
-'''Configure operation of the encryption algorithms via this file'''
+'''Configure algorithm operation via this file'''
 import os
 
-# Note:- Use absolute path when executing via VSC, use relative path when executing via IDLE
+# Path to set working directory
 PATH = os.path.dirname(os.path.abspath( __file__ )) + "\\"
-TEMP = "temp\\"
-SRC  = "input\\"
 
-IN      =  SRC + "raytracer480.png"  # Input image
+# Input image name and extension
+IMG = "raytracer480"
+EXT = ".png"
+
+# Key paths
+TEMP = "temp\\"             # Folder used to store intermediary results
+SRC  = "images\\"           # Folder containing input and output
+FRAC = "fractals\\"         # Folder containing fractal images
+ARTEMP  = TEMP + "catmap\\" # Debug files for ArMap intermediate results
+
+# Input/Output images
+ENC_IN =  SRC + IMG + EXT               # Input image for encryption
+ENC_OUT = SRC + IMG + "_encrypted.png"  # Final Encrypted Image
+DEC_OUT = SRC + IMG + "_decrypted.png"  # Final Decrypted Image
+
+# Intermediary Images
 HASH    = TEMP + "hash.txt"          # Image Hash  
+DIM     = TEMP + "dim.txt"           # Original Image Dimensions
 HISTEQ  = TEMP + "2histeq.png"       # Histogram-equalized square Image
 ARMAP   = TEMP + "3armap.png"        # Arnold-mapped Image
 MT      = TEMP + "4mtshuffle.png"    # MT-Shuffled Image
 XOR     = TEMP + "5xorfractal.png"   # Fractal-XOR'd Image
 UnXOR   = TEMP + "6xorunfractal.png" # Fractal-UnXOR'd Image
 UnMT    = TEMP + "7mtunshuffle.png"  # MT-UnShuffled Image
-ARTEMP  = TEMP + "catmap\\iteration" # Debug files for ArMap intermediate results
-OUT     = "out.png"                  # Output Image (and ArUnMap intermediate)
 
 #Flags
-DEBUG_HISTEQ = False
-DEBUG_CATMAP = False
-DEBUG_TIMER  = True
+DO_HISTEQ    = False     # Perform histogram equalization
+DEBUG_HISTEQ = False    # View original and equalized image
+DEBUG_ARMAP  = False    # Store each ArMap Iteration in temp folder
+DEBUG_TIMER  = True     # Print timing statistics in console
 
 #Constants
-MASK_BITS = 16
-AR_MIN_ITER = 100   #Min. catmap iterations
-AR_MAX_ITER = 118   #Max. catmap iterations
-BUFF_SIZE = 65536   #Compute hash in 64kB chunks
+MASK_BITS = 16      # Used for Serial MTShuffle() and MTUnShuffle()
+BUFF_SIZE = 65536   # Used by CoreFunctions.sha2HashFile()
