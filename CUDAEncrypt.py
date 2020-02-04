@@ -97,7 +97,7 @@ def Encrypt():
     gpuimgOut = cuda.mem_alloc(imgAr_In.nbytes)
     func = cf.mod.get_function("ArCatMap")
     
-    for i in range (1, int(cf.ArMapLen(dim[0])/2)):
+    for i in range (3, int(cf.ArMapLen(dim[0])/2)):
         cuda.memcpy_htod(gpuimgIn, imgAr_In)
         func(gpuimgIn, gpuimgOut, grid=(dim[0],dim[1],1), block=(dim[2],1,1))
         cuda.memcpy_dtoh(imgAr_In, gpuimgOut)
@@ -111,17 +111,17 @@ def Encrypt():
     cv2.imwrite(cfg.ARMAP, imgAr)
 
     timer[3] = time.perf_counter()
-    # MT Phase: Intra-column pixel shuffle
-    imgMT = cf.MTShuffle(imgAr, imghash)
+    # Fractal XOR Phase
+    imgFr = cf.FracXor(imgAr, imghash)
     timer[3] = time.perf_counter() - timer[3]
-    cv2.imwrite(cfg.MT, imgMT)
+    cv2.imwrite(cfg.XOR, imgFr)
 
     timer[4] = time.perf_counter()
-    # Fractal XOR Phase
-    imgFr = cf.FracXor(imgMT, imghash)
+    # MT Phase: Intra-column pixel shuffle
+    imgMT = cf.MTShuffle(imgFr, imghash)
     timer[4] = time.perf_counter() - timer[4]
-    cv2.imwrite(cfg.XOR, imgFr)
-    cv2.imwrite(cfg.ENC_OUT, imgFr)
+    cv2.imwrite(cfg.MT, imgMT)
+    cv2.imwrite(cfg.ENC_OUT, imgMT)
     overall_time = time.perf_counter() - overall_time
 
     # Print timing statistics
@@ -129,8 +129,8 @@ def Encrypt():
         print("Pre-processing completed in " + str(timer[0]) +"s")
         print("Hashing completed in " + str(timer[1]) +"s")
         print("Arnold Mapping completed in " + str(timer[2]) +"s")
-        print("MT Shuffle completed in " + str(timer[3]) +"s")
-        print("Fractal XOR completed in " + str(timer[4]) +"s")
+        print("Fractal XOR completed in " + str(timer[3]) +"s")
+        print("MT Shuffle completed in " + str(timer[4]) +"s")
         print("\nEncryption took " + str(np.sum(timer)) + "s out of " + str(overall_time) + "s of net execution time\n")
     
 Encrypt()

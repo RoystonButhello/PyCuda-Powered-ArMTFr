@@ -19,8 +19,8 @@ def Decrypt():
     overall_time = time.perf_counter()
 
     #Open the image
-    imgFr = cv2.imread(cfg.ENC_OUT, 1)
-    if imgFr is None:
+    imgMT = cv2.imread(cfg.ENC_OUT, 1)
+    if imgMT is None:
         print("File does not exist!")
         raise SystemExit(0)
 
@@ -30,17 +30,17 @@ def Decrypt():
     f.close()
 
     timer[0] = time.perf_counter()
-    # Inverse Fractal XOR Phase
-    imgFr = cf.FracXor(imgFr, srchash)
+    # Inverse MT Phase: Intra-column pixel unshuffle
+    imgMT = cf.MTUnShuffle(imgMT, srchash)
     timer[0] = time.perf_counter() - timer[0]
-    cv2.imwrite(cfg.UnXOR, imgFr)
+    cv2.imwrite(cfg.UnMT, imgMT)
 
     timer[1] = time.perf_counter()
-    # Inverse MT Phase: Intra-column pixel unshuffle
-    imgMT = cf.MTUnShuffle(imgFr, srchash)
+    # Inverse Fractal XOR Phase
+    imgFr = cf.FracXor(imgMT, srchash)
     timer[1] = time.perf_counter() - timer[1]
-    cv2.imwrite(cfg.UnMT, imgMT)
-    imgAr = imgMT
+    imgAr = imgFr
+    cv2.imwrite(cfg.UnXOR, imgFr)
 
     #Clear ArMap debug files
     if cfg.DEBUG_ARMAP:

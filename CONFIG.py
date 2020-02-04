@@ -24,10 +24,10 @@ HASH    = TEMP + "hash.txt"          # Image Hash
 DIM     = TEMP + "dim.txt"           # Original Image Dimensions
 HISTEQ  = TEMP + "2histeq.png"       # Histogram-equalized square Image
 ARMAP   = TEMP + "3armap.png"        # Arnold-mapped Image
-MT      = TEMP + "4mtshuffle.png"    # MT-Shuffled Image
-XOR     = TEMP + "5xorfractal.png"   # Fractal-XOR'd Image
-UnXOR   = TEMP + "6xorunfractal.png" # Fractal-UnXOR'd Image
-UnMT    = TEMP + "7mtunshuffle.png"  # MT-UnShuffled Image
+XOR     = TEMP + "4xorfractal.png"   # Fractal-XOR'd Image
+MT      = TEMP + "5mtshuffle.png"    # MT-Shuffled Image
+UnMT    = TEMP + "6mtunshuffle.png"  # MT-UnShuffled Image
+UnXOR   = TEMP + "7xorunfractal.png" # Fractal-UnXOR'd Image
 
 #Flags
 DO_HISTEQ    = False     # Perform histogram equalization
