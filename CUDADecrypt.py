@@ -41,10 +41,6 @@ def Decrypt():
     timer[1] = time.perf_counter() - timer[1]
     imgAr = imgFr
     cv2.imwrite(cfg.UnXOR, imgFr)
-
-    #Clear ArMap debug files
-    if cfg.DEBUG_ARMAP:
-        cf.ArMapClear()
     
     timer[2] = time.perf_counter()
     # Ar Phase: Cat-map Iterations

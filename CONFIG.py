@@ -5,7 +5,7 @@ import os
 PATH = os.path.dirname(os.path.abspath( __file__ )) + "\\"
 
 # Input image name and extension
-IMG = "raytracer480"
+IMG = "minray"
 EXT = ".png"
 
 # Key paths
@@ -30,7 +30,7 @@ UnMT    = TEMP + "6mtunshuffle.png"  # MT-UnShuffled Image
 UnXOR   = TEMP + "7xorunfractal.png" # Fractal-UnXOR'd Image
 
 #Flags
-DO_HISTEQ    = False     # Perform histogram equalization
+DO_HISTEQ    = False    # Perform histogram equalization
 DEBUG_HISTEQ = False    # View original and equalized image
 DEBUG_ARMAP  = False    # Store each ArMap Iteration in temp folder
 DEBUG_TIMER  = True     # Print timing statistics in console

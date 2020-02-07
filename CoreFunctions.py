@@ -1,10 +1,10 @@
-import cv2                  # OpenCV
-import os                   # Path setting and file-retrieval
-import glob                 # File counting
-import random               # Obviously neccessary
-import numpy as np          # See above
-import CONFIG as cfg        # Module with Debug flags and other constants
-import hashlib              # For SHA256
+import cv2              # OpenCV
+import os               # Path setting and file-retrieval
+import glob             # File counting
+import random           # Obviously neccessary
+import numpy as np      # See above
+import CONFIG as cfg    # Module with Debug flags and other constants
+import hashlib          # For SHA256
 
 #PyCUDA Import
 import pycuda.autoinit
@@ -108,25 +108,12 @@ def FracXor(img_in, imghash):
 
     return img_out
 
-# Create folder for intermediary files or clear it if it exists
-def TempClear():
-    files = os.listdir(cfg.TEMP)
-    for f in files:
-        os.remove(os.path.join(cfg.TEMP, f))
-
-
-# Clear ArMap debug files
-def ArMapClear():
-    files = os.listdir(cfg.ARTEMP)
-    for f in files:
-        os.remove(os.path.join(cfg.ARTEMP, f))
-        
 mod = SourceModule("""
     #include <stdint.h>
     __global__ void ArCatMap(uint8_t *in, uint8_t *out)
     {
-        int nx = (blockIdx.x + blockIdx.y) % gridDim.x;
-        int ny = (2*blockIdx.x + blockIdx.y) % gridDim.y;
+        int nx = (blockIdx.x + 2*blockIdx.y) % gridDim.x;
+        int ny = (3*blockIdx.x + 7*blockIdx.y) % gridDim.y;
         int blocksize = blockDim.x * blockDim.y * blockDim.z;
         int InDex = ((gridDim.x)*blockIdx.y + blockIdx.x) * blocksize  + threadIdx.x;
         int OutDex = ((gridDim.x)*ny + nx) * blocksize + threadIdx.x;

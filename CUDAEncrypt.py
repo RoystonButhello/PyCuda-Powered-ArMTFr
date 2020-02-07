@@ -5,6 +5,7 @@ import random               # Obviously neccessary
 import numpy as np          # See above
 import CONFIG as cfg        # Debug flags and constants
 import CoreFunctions as cf  # Common functions
+import shutil           # Directory removal
 
 #PyCUDA Import
 import pycuda.driver as cuda
@@ -40,9 +41,8 @@ def PreProcess():
         
     # Check if ./temp directory exists
     if os.path.exists(cfg.TEMP):
-        cf.TempClear()
-    else:
-        os.makedirs(cfg.TEMP)
+        shutil.rmtree(cfg.TEMP)
+    os.makedirs(cfg.TEMP)
 
     # Open Image
     img = cv2.imread(cfg.ENC_IN, 1)
@@ -85,10 +85,7 @@ def Encrypt():
     
     #Clear ArMap debug files
     if cfg.DEBUG_ARMAP:
-        if os.path.exists(cfg.ARTEMP):
-            cf.ArMapClear()
-        else:
-            os.makedirs(cfg.ARTEMP)
+        os.makedirs(cfg.ARTEMP)
     
     timer[2] = time.perf_counter()
     # Ar Phase: Cat-map Iterations
