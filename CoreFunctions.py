@@ -110,13 +110,29 @@ def FracXor(img_in, imghash):
 
 mod = SourceModule("""
     #include <stdint.h>
-    __global__ void ArCatMap(uint8_t *in, uint8_t *out)
+    __global__ void ArMapImg(uint8_t *in, uint8_t *out)
     {
-        int nx = (blockIdx.x + 2*blockIdx.y) % gridDim.x;
-        int ny = (3*blockIdx.x + 7*blockIdx.y) % gridDim.y;
-        int blocksize = blockDim.x * blockDim.y * blockDim.z;
-        int InDex = ((gridDim.x)*blockIdx.y + blockIdx.x) * blocksize  + threadIdx.x;
-        int OutDex = ((gridDim.x)*ny + nx) * blocksize + threadIdx.x;
+        int nx = (blockIdx.x + blockIdx.y) % gridDim.x;
+        int ny = (blockIdx.x + 2*blockIdx.y) % gridDim.y;
+        int InDex = ((gridDim.x)*blockIdx.y + blockIdx.x) * 3  + threadIdx.x;
+        int OutDex = ((gridDim.x)*ny + nx) * 3 + threadIdx.x;
+        out[OutDex] = in[InDex];
+    }
+
+    __global__ void ArMapTable(uint32_t *in, uint32_t *out)
+    {
+        int nx = (blockIdx.x + blockIdx.y) % gridDim.x;
+        int ny = (blockIdx.x + 2*blockIdx.y) % gridDim.y;
+        int InDex = ((gridDim.x)*blockIdx.y + blockIdx.x);
+        int OutDex = ((gridDim.x)*ny + nx);
+        out[OutDex] = in[InDex];
+    }
+
+    __global__ void ArMapTabletoImg(uint8_t *in, uint8_t *out, uint32_t *table)
+    {
+        uint32_t idx = ((gridDim.x)*blockIdx.y + blockIdx.x);
+        uint32_t InDex = idx * 3 + threadIdx.x;
+        uint32_t OutDex = table[idx] * 3 + threadIdx.x;
         out[OutDex] = in[InDex];
     }
   """)

@@ -24,10 +24,13 @@ def Decrypt():
         print("File does not exist!")
         raise SystemExit(0)
 
-    # Read hash from sent file
-    f = open(cfg.HASH, "r")
-    srchash = int(f.read())
+    # Read log file
+    f = open(cfg.LOG, "r")
+    fl = f.readlines()
     f.close()
+    width, height = int(fl[0]), int(fl[1])
+    srchash = int(fl[2])
+    rounds = int(fl[3])
 
     timer[0] = time.perf_counter()
     # Inverse MT Phase: Intra-column pixel unshuffle
@@ -47,31 +50,43 @@ def Decrypt():
     cv2.imwrite(cfg.DEC_OUT, imgAr)
     dim = imgAr.shape
     imgAr_In = np.asarray(imgAr).reshape(-1)
+    imgShuffle = np.arange(start=0, stop=len(imgAr_In)/3, dtype=np.uint32)
+    gpuimgIn = cuda.mem_alloc(imgShuffle.nbytes)
+    gpuimgOut = cuda.mem_alloc(imgShuffle.nbytes)
+    cuda.memcpy_htod(gpuimgIn, imgShuffle)
+    func = cf.mod.get_function("ArMapTable")
+
+    iteration = 0
+    # Recalculate mapping to generate lookup table
+    while (iteration<rounds):
+        func(gpuimgIn, gpuimgOut, grid=(dim[0],dim[1],1), block=(1,1,1))
+        temp = gpuimgOut
+        gpuimgOut = gpuimgIn
+        gpuimgIn = temp
+        iteration+=1
+
+    # Apply mapping
+    gpuShuffle = gpuimgIn
     gpuimgIn = cuda.mem_alloc(imgAr_In.nbytes)
     gpuimgOut = cuda.mem_alloc(imgAr_In.nbytes)
-    func = cf.mod.get_function("ArCatMap")
+    cuda.memcpy_htod(gpuimgIn, imgAr_In)
+    func = cf.mod.get_function("ArMapTabletoImg")
+    func(gpuimgIn, gpuimgOut, gpuShuffle, grid=(dim[0],dim[1],1), block=(3,1,1))
+    cuda.memcpy_dtoh(imgAr_In, gpuimgOut)
 
-    while (cf.sha2HashImage(imgAr)!=srchash):
-        cuda.memcpy_htod(gpuimgIn, imgAr_In)
-        func(gpuimgIn, gpuimgOut, grid=(dim[0],dim[1],1), block=(dim[2],1,1))
-        cuda.memcpy_dtoh(imgAr_In, gpuimgOut)
-        imgAr = (np.reshape(imgAr_In,dim)).astype(np.uint8)
     timer[2] = time.perf_counter() - timer[2]
+    imgAr = (np.reshape(imgAr_In,dim)).astype(np.uint8)
 
-    # Read image dimensions from sent file and resize if change
-    f = open(cfg.DIM, "r")
-    y, x = [int(i) for i in next(f).split()]
-    f.close()
-
-    if x!=y:
-        imgAr = cv2.resize(imgAr,(x,y),interpolation=cv2.INTER_LANCZOS4)
+    # Resize image to OG dimensions if needed
+    if height!=width:
+        imgAr = cv2.resize(imgAr,(height,width),interpolation=cv2.INTER_CUBIC)
     cv2.imwrite(cfg.DEC_OUT, imgAr)
 
     overall_time = time.perf_counter() - overall_time
 
     # Print timing statistics
-    print("Fractal XOR Inversion completed in " + str(timer[0]) +"s")
-    print("MT Unshuffle completed in " + str(timer[1]) +"s")
+    print("MT Unshuffle completed in " + str(timer[0]) +"s")
+    print("Fractal XOR Inversion completed in " + str(timer[1]) +"s")
     print("Arnold UnMapping completed in " + str(timer[2]) +"s")
     print("Decryption took " + str(np.sum(timer)) + "s out of " + str(overall_time) + "s of net execution time")
 

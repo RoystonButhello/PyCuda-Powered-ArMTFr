@@ -52,11 +52,12 @@ def PreProcess():
     dim = img.shape
 
     # Write original dimensions to file and resize to square image if neccessary
-    with open(cfg.DIM, 'w+') as f:
-        f.write(str(dim[0]) + " " + str(dim[1]))
+    with open(cfg.LOG, 'w+') as f:
+        f.write(str(dim[0]) + "\n")
+        f.write(str(dim[1]) + "\n")
     if dim[0]!=dim[1]:
         N = max(dim[0], dim[1])
-        img = cv2.resize(img,(N,N), interpolation=cv2.INTER_LANCZOS4)
+        img = cv2.resize(img,(N,N), interpolation=cv2.INTER_CUBIC)
         dim = img.shape
 
     return img, dim 
@@ -80,29 +81,27 @@ def Encrypt():
     # Compute hash of imgEQ and write to text file
     imghash = cf.sha2HashImage(imgEQ)
     timer[1] = time.perf_counter() - timer[1]
-    with open(cfg.HASH, 'w+') as f:
-        f.write(str(imghash))
-    
-    #Clear ArMap debug files
-    if cfg.DEBUG_ARMAP:
-        os.makedirs(cfg.ARTEMP)
+    with open(cfg.LOG, 'a+') as f:
+        f.write(str(imghash)+"\n")
     
     timer[2] = time.perf_counter()
     # Ar Phase: Cat-map Iterations
     imgAr_In = np.asarray(imgAr).reshape(-1)
     gpuimgIn = cuda.mem_alloc(imgAr_In.nbytes)
     gpuimgOut = cuda.mem_alloc(imgAr_In.nbytes)
-    func = cf.mod.get_function("ArCatMap")
-    
-    for i in range (3, int(cf.ArMapLen(dim[0])/2)):
-        cuda.memcpy_htod(gpuimgIn, imgAr_In)
-        func(gpuimgIn, gpuimgOut, grid=(dim[0],dim[1],1), block=(dim[2],1,1))
-        cuda.memcpy_dtoh(imgAr_In, gpuimgOut)
-        # Write intermediate files if debugging is enabled
-        if cfg.DEBUG_ARMAP:
-            imgAr = (np.reshape(imgAr_In,dim)).astype(np.uint8)
-            cv2.imwrite(cfg.ARTEMP + str(i) + ".png", imgAr)
+    cuda.memcpy_htod(gpuimgIn, imgAr_In)
+    func = cf.mod.get_function("ArMapImg")
 
+    rounds = int(cf.ArMapLen(dim[0])/2)
+    with open(cfg.LOG, 'a+') as f:
+        f.write(str(rounds)+"\n")
+    for i in range (max(rounds,5)):
+        func(gpuimgIn, gpuimgOut, grid=(dim[0],dim[1],1), block=(dim[2],1,1))
+        temp = gpuimgOut
+        gpuimgOut = gpuimgIn
+        gpuimgIn = temp
+
+    cuda.memcpy_dtoh(imgAr_In, gpuimgIn)
     imgAr = (np.reshape(imgAr_In,dim)).astype(np.uint8)
     timer[2] = time.perf_counter() - timer[2]
     cv2.imwrite(cfg.ARMAP, imgAr)

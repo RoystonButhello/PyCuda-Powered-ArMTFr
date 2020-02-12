@@ -5,14 +5,13 @@ import os
 PATH = os.path.dirname(os.path.abspath( __file__ )) + "\\"
 
 # Input image name and extension
-IMG = "minray"
+IMG = "mountain1080"
 EXT = ".png"
 
 # Key paths
 TEMP = "temp\\"             # Folder used to store intermediary results
 SRC  = "images\\"           # Folder containing input and output
 FRAC = "fractals\\"         # Folder containing fractal images
-ARTEMP  = TEMP + "catmap\\" # Debug files for ArMap intermediate results
 
 # Input/Output images
 ENC_IN =  SRC + IMG + EXT               # Input image for encryption
@@ -20,8 +19,7 @@ ENC_OUT = SRC + IMG + "_encrypted.png"  # Final Encrypted Image
 DEC_OUT = SRC + IMG + "_decrypted.png"  # Final Decrypted Image
 
 # Intermediary Images
-HASH    = TEMP + "hash.txt"          # Image Hash  
-DIM     = TEMP + "dim.txt"           # Original Image Dimensions
+LOG    = TEMP + "log.txt"            # Store Image Dimensions, Image Hash, and ArMap Iterations
 HISTEQ  = TEMP + "2histeq.png"       # Histogram-equalized square Image
 ARMAP   = TEMP + "3armap.png"        # Arnold-mapped Image
 XOR     = TEMP + "4xorfractal.png"   # Fractal-XOR'd Image
@@ -32,7 +30,6 @@ UnXOR   = TEMP + "7xorunfractal.png" # Fractal-UnXOR'd Image
 #Flags
 DO_HISTEQ    = False    # Perform histogram equalization
 DEBUG_HISTEQ = False    # View original and equalized image
-DEBUG_ARMAP  = False    # Store each ArMap Iteration in temp folder
 DEBUG_TIMER  = True     # Print timing statistics in console
 
 #Constants
