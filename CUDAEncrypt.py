@@ -5,7 +5,7 @@ import random               # Obviously neccessary
 import numpy as np          # See above
 import CONFIG as cfg        # Debug flags and constants
 import CoreFunctions as cf  # Common functions
-import shutil           # Directory removal
+import shutil               # Directory removal
 
 #PyCUDA Import
 import pycuda.driver as cuda
@@ -95,11 +95,15 @@ def Encrypt():
     rounds = int(cf.ArMapLen(dim[0])/2)
     with open(cfg.LOG, 'a+') as f:
         f.write(str(rounds)+"\n")
+    
+    func(gpuimgIn, gpuimgOut, grid=(dim[0],dim[1],1), block=(dim[2],1,1))
+    kernel_time = time.perf_counter()
     for i in range (max(rounds,5)):
         func(gpuimgIn, gpuimgOut, grid=(dim[0],dim[1],1), block=(dim[2],1,1))
         temp = gpuimgOut
         gpuimgOut = gpuimgIn
         gpuimgIn = temp
+    kernel_time = time.perf_counter() - kernel_time
 
     cuda.memcpy_dtoh(imgAr_In, gpuimgIn)
     imgAr = (np.reshape(imgAr_In,dim)).astype(np.uint8)
@@ -117,17 +121,22 @@ def Encrypt():
     imgMT = cf.MTShuffle(imgFr, imghash)
     timer[4] = time.perf_counter() - timer[4]
     cv2.imwrite(cfg.MT, imgMT)
+
     cv2.imwrite(cfg.ENC_OUT, imgMT)
     overall_time = time.perf_counter() - overall_time
+    misc = overall_time - np.sum(timer)
 
     # Print timing statistics
     if cfg.DEBUG_TIMER:
-        print("Pre-processing completed in " + str(timer[0]) +"s")
-        print("Hashing completed in " + str(timer[1]) +"s")
-        print("Arnold Mapping completed in " + str(timer[2]) +"s")
-        print("Fractal XOR completed in " + str(timer[3]) +"s")
-        print("MT Shuffle completed in " + str(timer[4]) +"s")
-        print("\nEncryption took " + str(np.sum(timer)) + "s out of " + str(overall_time) + "s of net execution time\n")
+        print("Target: {} ({}x{})".format(cfg.ENC_IN, dim[1], dim[0]))
+        print("Pre-processing:\t{0:9.7f}s ({1:5.2f}%)".format(timer[0], timer[0]/overall_time*100))
+        print("Hashing:\t{0:9.7f}s ({1:5.2f}%)".format(timer[1], timer[1]/overall_time*100))
+        print("Arnold Mapping:\t{0:9.7f}s ({1:5.2f}%)".format(timer[2], timer[2]/overall_time*100))
+        print("Kernel Exec.:\t{0:9.7f}s ({1:5.2f}%)".format(kernel_time, kernel_time/overall_time*100))        
+        print("Fractal XOR:\t{0:9.7f}s ({1:5.2f}%)".format(timer[3], timer[3]/overall_time*100))
+        print("PRNG Shuffle:\t{0:9.7f}s ({1:5.2f}%)".format(timer[4], timer[4]/overall_time*100))
+        print("Misc. ops: \t{0:9.7f}s ({1:5.2f}%)".format(misc, misc/overall_time*100))
+        print("Net Time:\t{0:7.5f}s\n".format(overall_time))
     
 Encrypt()
 cv2.waitKey(0)
