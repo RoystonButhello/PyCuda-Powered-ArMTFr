@@ -1,7 +1,9 @@
-# Ignore following directories
-__pycache__\\
-catmap\\
-temp\\
+# Ignore directories
+__pycache__/
+0_Versions/
+temp/
 
-# Ignore output file
-out.png
+# Ignore files
+images/*_encrypted.png
+images/*_decrypted.png
+*.cu
