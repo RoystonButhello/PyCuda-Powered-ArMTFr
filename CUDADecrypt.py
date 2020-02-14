@@ -23,6 +23,7 @@ def Decrypt():
     if imgMT is None:
         print("File does not exist!")
         raise SystemExit(0)
+    dim = imgMT.shape
 
     # Read log file
     f = open(cfg.LOG, "r")
@@ -31,12 +32,37 @@ def Decrypt():
     width, height = int(fl[0]), int(fl[1])
     srchash = int(fl[2])
     rounds = int(fl[3])
-
+    
     timer[0] = time.perf_counter()
-    # Inverse MT Phase: Intra-column pixel unshuffle
-    imgMT = cf.MTUnShuffle(imgMT, srchash)
+    # Inverse Permutation: Intra-row/column rotation
+    U = cf.genRelocVec(dim[0],dim[1],cfg.P1LOG, ENC=False) # Col-rotation | len(U)=n, values from 0->m
+    V = cf.genRelocVec(dim[1],dim[0],cfg.P2LOG, ENC=False) # Row-rotation | len(V)=m, values from 0->n
+    
+    imgArray  = np.asarray(imgMT).reshape(-1)
+    gpuimgIn  = cuda.mem_alloc(imgArray.nbytes)
+    gpuimgOut = cuda.mem_alloc(imgArray.nbytes)
+    cuda.memcpy_htod(gpuimgIn, imgArray)
+    gpuU = cuda.mem_alloc(U.nbytes)
+    gpuV = cuda.mem_alloc(V.nbytes)
+    cuda.memcpy_htod(gpuU, U)
+    cuda.memcpy_htod(gpuV, V)
+    func = cf.mod.get_function("Dec_GenCatMap")
+
+    func(gpuimgIn, gpuimgOut, gpuU, gpuV, grid=(dim[0],dim[1],1), block=(3,1,1))
+    temp = gpuimgIn
+    gpuimgIn = gpuimgOut
+    gpuimgOut = temp
+    for i in range(cfg.PERM_ROUNDS):
+        func(gpuimgIn, gpuimgOut, gpuU, gpuV, grid=(dim[0],dim[1],1), block=(3,1,1))
+        temp = gpuimgIn
+        gpuimgIn = gpuimgOut
+        gpuimgOut = temp
+
+    cuda.memcpy_dtoh(imgArray, gpuimgIn)
+    imgAr = (np.reshape(imgArray,dim)).astype(np.uint8)
     timer[0] = time.perf_counter() - timer[0]
-    cv2.imwrite(cfg.UnMT, imgMT)
+
+    cv2.imwrite(cfg.UnMT, imgAr)
 
     timer[1] = time.perf_counter()
     # Inverse Fractal XOR Phase

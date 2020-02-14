@@ -2,9 +2,11 @@ import cv2              # OpenCV
 import os               # Path setting and file-retrieval
 import glob             # File counting
 import random           # Obviously neccessary
+import secrets          # See above
 import numpy as np      # See above
 import CONFIG as cfg    # Module with Debug flags and other constants
 import hashlib          # For SHA256
+import time
 
 #PyCUDA Import
 import pycuda.autoinit
@@ -40,18 +42,6 @@ def ArMapLen(n):
         x1, y1 = (2*x1+y1)%n, (x1+y1)%n
         iterations += 1
     return iterations
-
-# Arnold's Cat Map
-def ArCatMap(img_in):
-    dim = img_in.shape
-    N = dim[0]
-    img_out = np.zeros([N, N, dim[2]])
-
-    for x in range(N):
-        for y in range(N):
-            img_out[x][y] = img_in[(x+y)%N][(2*x+y)%N]
-
-    return img_out
 
 # Mersenne-Twister Intra-Column-Shuffle
 def MTShuffle(img_in, imghash):
@@ -92,6 +82,55 @@ def MTUnShuffle(img_in, imghash):
             index = int(MTmap[i])
             img_out[index][j] = img_in[i][j]
     return img_out
+
+# Generate and return rotation vector of length n containing values < m
+def genRelocVec(m, n, logfile, ENC=True):
+    # Initialize constants
+    if ENC:
+        secGen = secrets.SystemRandom()
+        a = secGen.randint(2,cfg.PERMINTLIM)
+        b = secGen.randint(2,cfg.PERMINTLIM)
+        c = 1 + a*b
+        x = secGen.uniform(0.0001,1.0)
+        y = secGen.uniform(0.0001,1.0)
+        offset = secGen.randint(1,cfg.PERMINTLIM)
+        # Log parameters for decryption
+        with open(logfile, 'a+') as f:
+            f.write(str(a) +"\n")
+            f.write(str(b) +"\n")
+            f.write(str(x) +"\n")
+            f.write(str(y) +"\n")
+            f.write(str(offset) + "\n")
+    else:
+        with open(logfile, "r") as f:
+            fl = f.readlines()
+            a = int(fl[0])
+            b = int(fl[1])
+            c = 1 + a*b
+            x = float(fl[2])
+            y = float(fl[3])
+            offset = int(fl[4])
+    unzero = 0.0000001
+
+    # Skip first <offset> values
+    for i in range(offset):
+        x = (x + a*y)%1 + unzero
+        y = (b*x + c*y)%1 + unzero
+    
+    # Start writing intermediate values
+    ranF = np.zeros((n),dtype=np.float)
+    for i in range(n//2):
+        x = (x + a*y)%1 + unzero
+        y = (b*x + c*y)%1 + unzero
+        ranF[2*i] = x
+        ranF[2*i+1] = y
+    
+    # Generate relocation vector
+    exp = 10**14
+    vec = np.zeros((n),dtype=np.uint16)
+    for i in range(n):
+        vec[i] = np.uint16((ranF[i]*exp)%m)
+    return vec
 
 # XOR Image with a Fractal
 def FracXor(img_in, imghash):
@@ -134,5 +173,23 @@ mod = SourceModule("""
         uint32_t InDex = idx * 3 + threadIdx.x;
         uint32_t OutDex = table[idx] * 3 + threadIdx.x;
         out[OutDex] = in[InDex];
+    } 
+    
+    __global__ void Enc_GenCatMap(uint8_t *in, uint8_t *out, uint16_t *colRotate, uint16_t *rowRotate)
+    {
+        int colShift = colRotate[blockIdx.y];
+        int rowShift = rowRotate[(blockIdx.x + colShift)%gridDim.x];
+        int InDex    = ((gridDim.y)*blockIdx.x + blockIdx.y) * 3  + threadIdx.x;
+        int OutDex   = ((gridDim.y)*((blockIdx.x + colShift)%gridDim.x) + (blockIdx.y + rowShift)%gridDim.y) * 3  + threadIdx.x;
+        out[OutDex]  = in[InDex];
+    }
+
+    __global__ void Dec_GenCatMap(uint8_t *in, uint8_t *out, uint16_t *colRotate, uint16_t *rowRotate)
+    {
+        int colShift = colRotate[blockIdx.y];
+        int rowShift = rowRotate[(blockIdx.x + colShift)%gridDim.x];
+        int OutDex   = ((gridDim.y)*blockIdx.x + blockIdx.y) * 3  + threadIdx.x;
+        int InDex    = ((gridDim.y)*((blockIdx.x + colShift)%gridDim.x) + (blockIdx.y + rowShift)%gridDim.y) * 3  + threadIdx.x;
+        out[OutDex]  = in[InDex];
     }
   """)

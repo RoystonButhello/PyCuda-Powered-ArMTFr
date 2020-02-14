@@ -19,7 +19,9 @@ ENC_OUT = SRC + IMG + "_encrypted.png"  # Final Encrypted Image
 DEC_OUT = SRC + IMG + "_decrypted.png"  # Final Decrypted Image
 
 # Intermediary Images
-LOG    = TEMP + "log.txt"            # Store Image Dimensions, Image Hash, and ArMap Iterations
+LOG     = TEMP + "log.txt"           # Store Image Dimensions, Image Hash, ArMap Iterations
+P1LOG   = TEMP + "p1log.txt"         # Store parameters for column-rotation vector
+P2LOG   = TEMP + "p2log.txt"         # Store parameters for row-rotation vector
 HISTEQ  = TEMP + "2histeq.png"       # Histogram-equalized square Image
 ARMAP   = TEMP + "3armap.png"        # Arnold-mapped Image
 XOR     = TEMP + "4xorfractal.png"   # Fractal-XOR'd Image
@@ -29,9 +31,11 @@ UnXOR   = TEMP + "7xorunfractal.png" # Fractal-UnXOR'd Image
 
 #Flags
 DO_HISTEQ    = False    # Perform histogram equalization
-DEBUG_HISTEQ = False    # View original and equalized image
+DEBUG_IMAGES = True     # View original and equalized image
 DEBUG_TIMER  = True     # Print timing statistics in console
 
 #Constants
-MASK_BITS = 16      # Used for Serial MTShuffle() and MTUnShuffle()
+MASK_BITS = 16      # Used by Serial MTShuffle() and MTUnShuffle()
 BUFF_SIZE = 65536   # Used by CoreFunctions.sha2HashFile()
+PERMINTLIM = 32     # Used by genRelocVec()
+PERM_ROUNDS = 7     # No. of rounds to run permutation kernel
