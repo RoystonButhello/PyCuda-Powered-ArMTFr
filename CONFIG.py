@@ -1,5 +1,6 @@
 '''Configure algorithm operation via this file'''
 import os
+from enum import Enum
 
 # Path to set working directory
 PATH = os.path.dirname(os.path.abspath( __file__ )) + "\\"
@@ -19,19 +20,18 @@ ENC_OUT = SRC + IMG + "_encrypted.png"  # Final Encrypted Image
 DEC_OUT = SRC + IMG + "_decrypted.png"  # Final Decrypted Image
 
 # Intermediary Images
-LOG     = TEMP + "log.txt"           # Store Image Dimensions, Image Hash, ArMap Iterations
-P1LOG   = TEMP + "p1log.txt"         # Store parameters for column-rotation vector
-P2LOG   = TEMP + "p2log.txt"         # Store parameters for row-rotation vector
-HISTEQ  = TEMP + "2histeq.png"       # Histogram-equalized square Image
-ARMAP   = TEMP + "3armap.png"        # Arnold-mapped Image
-XOR     = TEMP + "4xorfractal.png"   # Fractal-XOR'd Image
-MT      = TEMP + "5mtshuffle.png"    # MT-Shuffled Image
-UnMT    = TEMP + "6mtunshuffle.png"  # MT-UnShuffled Image
-UnXOR   = TEMP + "7xorunfractal.png" # Fractal-UnXOR'd Image
+LOG     = TEMP + "log.txt"          # Store Image Dimensions, Image Hash, ArMap Iterations
+P1LOG   = TEMP + "p1log.txt"        # Store parameters for column-rotation vector
+P2LOG   = TEMP + "p2log.txt"        # Store parameters for row-rotation vector
+ARMAP   = TEMP + "1armap.png"       # Arnold-mapped Image
+XOR     = TEMP + "2xor.png"         # XOR'd Image
+PERM    = TEMP + "3permute.png"     # Permuted Image
+UNPERM  = TEMP + "4unpermute.png"   # Un-Permuted Image
+UNXOR   = TEMP + "5unxor.png"       # Un-XOR'd Image
 
 #Flags
-DO_HISTEQ    = False    # Perform histogram equalization
-DEBUG_IMAGES = True     # View original and equalized image
+DO_HISTEQ = False
+DEBUG_IMAGES = True    # View original and equalized image
 DEBUG_TIMER  = True     # Print timing statistics in console
 
 #Constants
