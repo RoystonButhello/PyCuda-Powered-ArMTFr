@@ -31,11 +31,9 @@ UNXOR   = TEMP + "5unxor.png"       # Un-XOR'd Image
 
 #Flags
 DO_HISTEQ = False
-DEBUG_IMAGES = True    # View original and equalized image
+DEBUG_IMAGES = False    # View original and equalized image
 DEBUG_TIMER  = True     # Print timing statistics in console
 
 #Constants
-MASK_BITS = 16      # Used by Serial MTShuffle() and MTUnShuffle()
-BUFF_SIZE = 65536   # Used by CoreFunctions.sha2HashFile()
 PERMINTLIM = 32     # Used by genRelocVec()
 PERM_ROUNDS = 7     # No. of rounds to run permutation kernel
