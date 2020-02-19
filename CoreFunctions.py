@@ -74,7 +74,6 @@ def genRelocVec(m, n, logfile, ENC=True):
 
 # XOR Image with a Fractal
 def FracXor(img, fracID=-1):
-    timer = perf_counter()
     # Read/Write fractal filename based on mode
     if fracID==-1:
         fileCount = len(os.listdir(cfg.FRAC))
@@ -87,8 +86,7 @@ def FracXor(img, fracID=-1):
     fractal = cv2.imread(filename, 1)
     dim = img.shape
     fractal = cv2.resize(fractal,(dim[1],dim[0]))
-    timer = perf_counter() - timer
-    return cv2.bitwise_xor(img,fractal), timer
+    return cv2.bitwise_xor(img,fractal), 0.0
 
 def getFractal(img, fracID=-1):
     timer = perf_counter()

@@ -56,69 +56,61 @@ def Encrypt():
     perf_timer = np.zeros(4)
     overall_time = perf_counter()
     
-    # Read image and clear temp directories
+    # Read image & clear temp directories
     img, dim, misc_timer = PreProcess()
 
-    misc_timer[3] - perf_counter()
-    # Ar Phase: Cat-map Iterations
+    # Resize image for Arnold Mapping
+    misc_timer[3] = perf_counter()
     if dim[0]!=dim[1]:
         N = max(dim[0], dim[1])
         img = cv2.resize(img,(N,N), interpolation=cv2.INTER_CUBIC)
         dim = img.shape
+
+    # Calculate no. of rounds
+    rounds = int(cf.ArMapLen(dim[0])/8) + 1
+    func = cf.mod.get_function("ArMapImg")
+    misc_timer[3] = perf_counter() - misc_timer[3]
     
+    # Flatten image to vector and send to GPU
+    temp_timer = perf_counter()
     imgArr = np.asarray(img).reshape(-1)
     gpuimgIn = cuda.mem_alloc(imgArr.nbytes)
     gpuimgOut = cuda.mem_alloc(imgArr.nbytes)
     cuda.memcpy_htod(gpuimgIn, imgArr)
-    func = cf.mod.get_function("ArMapImg")
+    misc_timer[1] += perf_counter() - temp_timer
 
-    rounds = int(cf.ArMapLen(dim[0])/8) + 1
+    # Log no. of rounds
+    temp_timer = perf_counter()
     with open(cfg.LOG, 'a+') as f:
         f.write(str(rounds)+"\n")
-    
-    func(gpuimgIn, gpuimgOut, grid=(dim[0],dim[1],1), block=(dim[2],1,1))
-    temp = gpuimgOut
-    gpuimgOut = gpuimgIn
-    gpuimgIn = temp
-    perf_timer[0] = perf_counter()
+    misc_timer[2] += perf_counter() - temp_timer
+
+    # Perform Arnold Mapping
     for i in range (max(rounds,5)):
-        func(gpuimgIn, gpuimgOut, grid=(dim[0],dim[1],1), block=(dim[2],1,1))
+        func(gpuimgIn, gpuimgOut, grid=(dim[0],dim[1],1), block=(3,1,1))
+        if i==1:
+            perf_timer[0] = perf_counter()
         temp = gpuimgOut
         gpuimgOut = gpuimgIn
         gpuimgIn = temp
     perf_timer[0] = perf_counter() - perf_timer[0]
 
-    cuda.memcpy_dtoh(imgArr, gpuimgIn)
-    img = (np.reshape(imgArr,dim)).astype(np.uint8)
-
-    if cfg.DEBUG_IMAGES:
-        cv2.imwrite(cfg.ARMAP, img)
-    misc_timer[3] = perf_counter() - misc_timer[3] - perf_timer[0]
-    
     # Fractal XOR Phase
-    fractal, misc_timer[4] = cf.getFractal(img)
-
     temp_timer = perf_counter()
-    imgArr  = np.asarray(img).reshape(-1)
-    gpuimgIn  = cuda.mem_alloc(imgArr.nbytes)
-    gpuimgOut = cuda.mem_alloc(imgArr.nbytes)
-    cuda.memcpy_htod(gpuimgIn, imgArr)
-
+    fractal, misc_timer[4] = cf.getFractal(img)
     fracArr  = np.asarray(fractal).reshape(-1)
     gpuFrac = cuda.mem_alloc(fracArr.nbytes)
     cuda.memcpy_htod(gpuFrac, fracArr)
     func = cf.mod.get_function("FracXOR")
+    misc_timer[4] = perf_counter() - temp_timer
 
-    perf_timer[2] = perf_counter()
+    perf_timer[1] = perf_counter()
     func(gpuimgIn, gpuimgOut, gpuFrac, grid=(dim[0]*dim[1],1,1), block=(3,1,1))
-    perf_timer[2] = perf_counter() - perf_timer[2]
-    
-    cuda.memcpy_dtoh(imgArr, gpuimgOut)
-    img = (np.reshape(imgArr,dim)).astype(np.uint8)
-    
-    if cfg.DEBUG_IMAGES:
-        cv2.imwrite(cfg.XOR, img)
-    misc_timer[4] += (perf_counter() - temp_timer - perf_timer[2])
+    perf_timer[1] = perf_counter() - perf_timer[1]
+
+    temp = gpuimgOut
+    gpuimgOut = gpuimgIn
+    gpuimgIn = temp
 
     # Permutation: ArMap-based intra-row/column rotation
     perf_timer[2] = perf_counter()
@@ -127,43 +119,35 @@ def Encrypt():
     perf_timer[2] = perf_counter() - perf_timer[2]
     
     misc_timer[5] = perf_counter()
-    imgArr  = np.asarray(img).reshape(-1)
-    gpuimgIn  = cuda.mem_alloc(imgArr.nbytes)
-    gpuimgOut = cuda.mem_alloc(imgArr.nbytes)
-    cuda.memcpy_htod(gpuimgIn, imgArr)
     gpuU = cuda.mem_alloc(U.nbytes)
     gpuV = cuda.mem_alloc(V.nbytes)
     cuda.memcpy_htod(gpuU, U)
     cuda.memcpy_htod(gpuV, V)
     func = cf.mod.get_function("Enc_GenCatMap")
+    misc_timer[5] = perf_counter() - misc_timer[5]
 
-    func(gpuimgIn, gpuimgOut, gpuU, gpuV, grid=(dim[0],dim[1],1), block=(3,1,1))
-    temp = gpuimgIn
-    gpuimgIn = gpuimgOut
-    gpuimgOut = temp
-    perf_timer[3] = perf_counter()
     for i in range(cfg.PERM_ROUNDS):
         func(gpuimgIn, gpuimgOut, gpuU, gpuV, grid=(dim[0],dim[1],1), block=(3,1,1))
+        if i==1:
+            perf_timer[3] = perf_counter()
         temp = gpuimgIn
         gpuimgIn = gpuimgOut
         gpuimgOut = temp
     perf_timer[3] = perf_counter() - perf_timer[3]
 
+    # Transfer vector back to host and reshape into encrypted output
+    temp_timer = perf_counter()
     cuda.memcpy_dtoh(imgArr, gpuimgIn)
     img = (np.reshape(imgArr,dim)).astype(np.uint8)
-
-    if cfg.DEBUG_IMAGES:
-        cv2.imwrite(cfg.PERM, img)
-    misc_timer[5] = perf_counter() - misc_timer[5] - perf_timer[3]
-
     cv2.imwrite(cfg.ENC_OUT, img)
-    overall_time = perf_counter() - overall_time
-    perf = np.sum(perf_timer)
-    misc = np.sum(misc_timer)
-    unaccounted = overall_time - perf - misc
+    misc_timer[1] += perf_counter() - temp_timer
     
     # Print timing statistics
     if cfg.DEBUG_TIMER:
+        overall_time = perf_counter() - overall_time
+        perf = np.sum(perf_timer)
+        misc = np.sum(misc_timer)
+
         print("\nTarget: {} ({}x{})".format(cfg.ENC_IN, dim[1], dim[0]))    
 
         print("\nPERF. OPS: \t{0:9.7f}s ({1:5.2f}%)".format(perf, perf/overall_time*100))
@@ -174,13 +158,11 @@ def Encrypt():
 
         print("\nMISC. OPS: \t{0:9.7f}s ({1:5.2f}%)".format(misc, misc/overall_time*100))
         print("Dir. Cleanup:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[0], misc_timer[0]/overall_time*100)) 
-        print("Input Read:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[1], misc_timer[1]/overall_time*100))
-        print("Logging:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[2], misc_timer[2]/overall_time*100)) 
+        print("I/O:\t\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[1], misc_timer[1]/overall_time*100))
+        print("Logging:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[2], misc_timer[2]/overall_time*100))
         print("ArMap Misc:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[3], misc_timer[3]/overall_time*100)) 
         print("FracXOR Misc:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[4], misc_timer[4]/overall_time*100)) 
         print("Permute Misc:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[5], misc_timer[5]/overall_time*100))
-
-        print("\nUnnaccounted: \t{0:9.7f}s ({1:5.2f}%)".format(unaccounted, unaccounted/overall_time*100))
 
         print("\nNET TIME:\t{0:7.5f}s\n".format(overall_time))
     

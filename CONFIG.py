@@ -31,9 +31,8 @@ UNXOR   = TEMP + "5unxor.png"       # Un-XOR'd Image
 
 #Flags
 DO_HISTEQ = False
-DEBUG_IMAGES = False    # View original and equalized image
 DEBUG_TIMER  = True     # Print timing statistics in console
 
 #Constants
 PERMINTLIM = 32     # Used by genRelocVec()
-PERM_ROUNDS = 7     # No. of rounds to run permutation kernel
+PERM_ROUNDS = 8     # No. of rounds to run permutation kernel
