@@ -94,13 +94,31 @@ def Encrypt():
     if cfg.DEBUG_IMAGES:
         cv2.imwrite(cfg.ARMAP, img)
     misc_timer[3] = perf_counter() - misc_timer[3] - perf_timer[0]
-
+    
     # Fractal XOR Phase
-    perf_timer[1] = perf_counter()
-    img, misc_timer[4] = cf.FracXor(img)
-    perf_timer[1] = perf_counter() - perf_timer[1] - misc_timer[4]
+    fractal, misc_timer[4] = cf.getFractal(img)
+
+    temp_timer = perf_counter()
+    imgArr  = np.asarray(img).reshape(-1)
+    gpuimgIn  = cuda.mem_alloc(imgArr.nbytes)
+    gpuimgOut = cuda.mem_alloc(imgArr.nbytes)
+    cuda.memcpy_htod(gpuimgIn, imgArr)
+
+    fracArr  = np.asarray(fractal).reshape(-1)
+    gpuFrac = cuda.mem_alloc(fracArr.nbytes)
+    cuda.memcpy_htod(gpuFrac, fracArr)
+    func = cf.mod.get_function("FracXOR")
+
+    perf_timer[2] = perf_counter()
+    func(gpuimgIn, gpuimgOut, gpuFrac, grid=(dim[0]*dim[1],1,1), block=(3,1,1))
+    perf_timer[2] = perf_counter() - perf_timer[2]
+    
+    cuda.memcpy_dtoh(imgArr, gpuimgOut)
+    img = (np.reshape(imgArr,dim)).astype(np.uint8)
+    
     if cfg.DEBUG_IMAGES:
         cv2.imwrite(cfg.XOR, img)
+    misc_timer[4] += (perf_counter() - temp_timer - perf_timer[2])
 
     # Permutation: ArMap-based intra-row/column rotation
     perf_timer[2] = perf_counter()
@@ -150,7 +168,7 @@ def Encrypt():
 
         print("\nPERF. OPS: \t{0:9.7f}s ({1:5.2f}%)".format(perf, perf/overall_time*100))
         print("ArMap Kernel:\t{0:9.7f}s ({1:5.2f}%)".format(perf_timer[0], perf_timer[0]/overall_time*100))   
-        print("Fractal XOR: \t{0:9.7f}s ({1:5.2f}%)".format(perf_timer[1], perf_timer[1]/overall_time*100))
+        print("XOR Kernel: \t{0:9.7f}s ({1:5.2f}%)".format(perf_timer[1], perf_timer[1]/overall_time*100))
         print("Shuffle Gen: \t{0:9.7f}s ({1:5.2f}%)".format(perf_timer[2], perf_timer[2]/overall_time*100))
         print("Perm. Kernel:\t{0:9.7f}s ({1:5.2f}%)".format(perf_timer[3], perf_timer[3]/overall_time*100))
 
@@ -158,9 +176,9 @@ def Encrypt():
         print("Dir. Cleanup:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[0], misc_timer[0]/overall_time*100)) 
         print("Input Read:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[1], misc_timer[1]/overall_time*100))
         print("Logging:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[2], misc_timer[2]/overall_time*100)) 
-        print("ArMap PreP:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[3], misc_timer[3]/overall_time*100)) 
-        print("FracXOR PreP:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[4], misc_timer[4]/overall_time*100)) 
-        print("Permute PreP:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[5], misc_timer[5]/overall_time*100))
+        print("ArMap Misc:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[3], misc_timer[3]/overall_time*100)) 
+        print("FracXOR Misc:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[4], misc_timer[4]/overall_time*100)) 
+        print("Permute Misc:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[5], misc_timer[5]/overall_time*100))
 
         print("\nUnnaccounted: \t{0:9.7f}s ({1:5.2f}%)".format(unaccounted, unaccounted/overall_time*100))
 

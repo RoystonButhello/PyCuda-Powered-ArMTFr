@@ -73,16 +73,32 @@ def Decrypt():
     misc_timer[2] = perf_counter() - misc_timer[2] - perf_timer[1]
 
     # Inverse Fractal XOR Phase
+    fractal, misc_timer[3] = cf.getFractal(img, fracID)
+
+    temp_timer = perf_counter()
+    imgArr  = np.asarray(img).reshape(-1)
+    gpuimgIn  = cuda.mem_alloc(imgArr.nbytes)
+    gpuimgOut = cuda.mem_alloc(imgArr.nbytes)
+    cuda.memcpy_htod(gpuimgIn, imgArr)
+
+    fracArr  = np.asarray(fractal).reshape(-1)
+    gpuFrac = cuda.mem_alloc(fracArr.nbytes)
+    cuda.memcpy_htod(gpuFrac, fracArr)
+    func = cf.mod.get_function("FracXOR")
+
     perf_timer[2] = perf_counter()
-    img, misc_timer[3] = cf.FracXor(img, fracID)
+    func(gpuimgIn, gpuimgOut, gpuFrac, grid=(dim[0]*dim[1],1,1), block=(3,1,1))
     perf_timer[2] = perf_counter() - perf_timer[2]
+    
+    cuda.memcpy_dtoh(imgArr, gpuimgOut)
+    img = (np.reshape(imgArr,dim)).astype(np.uint8)
 
     if cfg.DEBUG_IMAGES:
         cv2.imwrite(cfg.UNXOR, img)
+    misc_timer[3] += (perf_counter() - temp_timer - perf_timer[2])
 
     misc_timer[4] = perf_counter()
     # Ar Phase: Cat-map Iterations
-    dim = img.shape
     imgArr = np.asarray(img).reshape(-1)
     imgShuffle = np.arange(start=0, stop=len(imgArr)/3, dtype=np.uint32)
     gpuimgIn = cuda.mem_alloc(imgShuffle.nbytes)
@@ -91,13 +107,12 @@ def Decrypt():
     func = cf.mod.get_function("ArMapTable")
     misc_timer[4] = perf_counter() - misc_timer[4]
 
-    iteration = 0
+    # Recalculate mapping to generate lookup table
     func(gpuimgIn, gpuimgOut, grid=(dim[0],dim[1],1), block=(1,1,1))
     temp = gpuimgOut
     gpuimgOut = gpuimgIn
     gpuimgIn = temp
-    
-    # Recalculate mapping to generate lookup table
+    iteration = 0
     perf_timer[3] = perf_counter()
     while iteration<rounds:
         func(gpuimgIn, gpuimgOut, grid=(dim[0],dim[1],1), block=(1,1,1))
@@ -115,7 +130,7 @@ def Decrypt():
     cuda.memcpy_htod(gpuimgIn, imgArr)
     func = cf.mod.get_function("ArMapTabletoImg")
     perf_timer[4] = perf_counter()
-    func(gpuimgIn, gpuimgOut, gpuShuffle, grid=(dim[0],dim[1],1), block=(3,1,1))
+    func(gpuimgIn, gpuimgOut, gpuShuffle, grid=(dim[0]*dim[1],1,1), block=(3,1,1))
     perf_timer[4] = perf_counter() - perf_timer[4]
     cuda.memcpy_dtoh(imgArr, gpuimgOut)
 
@@ -140,17 +155,17 @@ def Decrypt():
         print("\nPERF. OPS: \t{0:9.7f}s ({1:5.2f}%)".format(perf, perf/overall_time*100))
         print("Shuffle Gen:   \t{0:9.7f}s ({1:5.2f}%)".format(perf_timer[0], perf_timer[0]/overall_time*100))
         print("Perm. Kernel:  \t{0:9.7f}s ({1:5.2f}%)".format(perf_timer[1], perf_timer[1]/overall_time*100))
-        print("Fractal XOR:   \t{0:9.7f}s ({1:5.2f}%)".format(perf_timer[2], perf_timer[2]/overall_time*100))
+        print("XOR Kernel:   \t{0:9.7f}s ({1:5.2f}%)".format(perf_timer[2], perf_timer[2]/overall_time*100))
         print("LUT Kernel:\t{0:9.7f}s ({1:5.2f}%)".format(perf_timer[3], perf_timer[3]/overall_time*100))
         print("Mapping Kernel:\t{0:9.7f}s ({1:5.2f}%)".format(perf_timer[4], perf_timer[4]/overall_time*100))
         
         print("\nMISC. OPS: \t{0:9.7f}s ({1:5.2f}%)".format(misc, misc/overall_time*100))
         print("Input Read:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[0], misc_timer[0]/overall_time*100)) 
         print("Log Read:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[1], misc_timer[1]/overall_time*100))
-        print("Permute PreP:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[2], misc_timer[2]/overall_time*100)) 
-        print("FracXOR PreP:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[3], misc_timer[3]/overall_time*100)) 
-        print("LUT PreP:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[4], misc_timer[4]/overall_time*100)) 
-        print("Mapping PreP:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[5], misc_timer[5]/overall_time*100))
+        print("Permute Misc:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[2], misc_timer[2]/overall_time*100)) 
+        print("FracXOR Misc:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[3], misc_timer[3]/overall_time*100)) 
+        print("LUT Misc:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[4], misc_timer[4]/overall_time*100)) 
+        print("Mapping Misc:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[5], misc_timer[5]/overall_time*100))
         
         print("\nUnnaccounted: \t{0:9.7f}s ({1:5.2f}%)".format(unaccounted, unaccounted/overall_time*100))
 

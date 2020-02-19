@@ -5,6 +5,7 @@ import numpy as np      # Naturally needed
 import CONFIG as cfg    # Module with Debug flags and other constants
 import os               # Path setting & File Counting
 from random import randint
+from time import perf_counter
 
 #PyCUDA Import
 import pycuda.autoinit
@@ -73,6 +74,7 @@ def genRelocVec(m, n, logfile, ENC=True):
 
 # XOR Image with a Fractal
 def FracXor(img, fracID=-1):
+    timer = perf_counter()
     # Read/Write fractal filename based on mode
     if fracID==-1:
         fileCount = len(os.listdir(cfg.FRAC))
@@ -85,7 +87,24 @@ def FracXor(img, fracID=-1):
     fractal = cv2.imread(filename, 1)
     dim = img.shape
     fractal = cv2.resize(fractal,(dim[1],dim[0]))
-    return cv2.bitwise_xor(img,fractal)
+    timer = perf_counter() - timer
+    return cv2.bitwise_xor(img,fractal), timer
+
+def getFractal(img, fracID=-1):
+    timer = perf_counter()
+    # Read/Write fractal filename based on mode
+    if fracID==-1:
+        fileCount = len(os.listdir(cfg.FRAC))
+        fracID = (randint(0,img.shape[0]) % fileCount) + 1
+        with open(cfg.LOG, 'a+') as f:
+            f.write(str(fracID)+"\n")
+
+    #Read the file, resize it, then XOR
+    filename = cfg.FRAC + str(fracID) + ".png"
+    fractal = cv2.imread(filename, 1)
+    dim = img.shape
+    timer = perf_counter() - timer
+    return cv2.resize(fractal,(dim[1],dim[0])), timer
 
 mod = SourceModule("""
     #include <stdint.h>
@@ -109,9 +128,8 @@ mod = SourceModule("""
 
     __global__ void ArMapTabletoImg(uint8_t *in, uint8_t *out, uint32_t *table)
     {
-        uint32_t idx = ((gridDim.x)*blockIdx.y + blockIdx.x);
-        uint32_t InDex = idx * 3 + threadIdx.x;
-        uint32_t OutDex = table[idx] * 3 + threadIdx.x;
+        uint32_t InDex = blockIdx.x * 3 + threadIdx.x;
+        uint32_t OutDex = table[blockIdx.x] * 3 + threadIdx.x;
         out[OutDex] = in[InDex];
     } 
     
@@ -132,4 +150,10 @@ mod = SourceModule("""
         int InDex    = ((gridDim.y)*((blockIdx.x + colShift)%gridDim.x) + (blockIdx.y + rowShift)%gridDim.y) * 3  + threadIdx.x;
         out[OutDex]  = in[InDex];
     }
+
+    __global__ void FracXOR(uint8_t *in, uint8_t *out, uint8_t *fractal)
+    {
+        int idx = blockIdx.x * 3 + threadIdx.x;
+        out[idx] = in[idx]^fractal[idx];
+    } 
   """)
