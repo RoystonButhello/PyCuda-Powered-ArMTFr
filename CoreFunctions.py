@@ -9,6 +9,7 @@ from time import perf_counter
 
 #PyCUDA Import
 import pycuda.autoinit
+import pycuda.driver as cuda
 from pycuda.compiler import SourceModule
 
 os.chdir(cfg.PATH)
@@ -103,6 +104,15 @@ def getFractal(img, fracID=-1):
     dim = img.shape
     timer = perf_counter() - timer
     return cv2.resize(fractal,(dim[1],dim[0])), timer
+
+def interImageWrite(gpuImg, name, size, dim):
+    timer = perf_counter()
+    imgArr = np.zeros(size,dtype=np.uint8)
+    cuda.memcpy_dtoh(imgArr, gpuImg)
+    imgTemp = (np.reshape(imgArr,dim)).astype(np.uint8)
+    filename = cfg.TEMP + name + ".png"
+    cv2.imwrite(filename, imgTemp)
+    return perf_counter() - timer
 
 mod = SourceModule("""
     #include <stdint.h>

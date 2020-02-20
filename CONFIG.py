@@ -26,7 +26,8 @@ P2LOG   = TEMP + "p2log.txt"        # Store parameters for row-rotation vector
 
 #Flags
 DO_HISTEQ = False
-DEBUG_TIMER  = True     # Print timing statistics in console
+DEBUG_IMAGES = False # Download intermediate results from GPU and write to disk
+DEBUG_TIMER  = True  # Print timing statistics in console
 
 #Constants
 PERMINTLIM = 32     # Used by genRelocVec()

@@ -14,7 +14,10 @@ os.chdir(cfg.PATH)
 
 def PreProcess():
     # Initiliaze misc_timer
-    misc_timer = np.zeros(6)
+    if cfg.DEBUG_IMAGES:
+        misc_timer = np.zeros(7)
+    else:
+        misc_timer = np.zeros(6)
 
     misc_timer[0] = perf_counter()
     # Check if ./images directory exists
@@ -95,6 +98,9 @@ def Encrypt():
         gpuimgIn = temp
     perf_timer[0] = perf_counter() - perf_timer[0]
 
+    if cfg.DEBUG_IMAGES:
+        misc_timer[6] += cf.interImageWrite(gpuimgIn, "IN_1", len(imgArr), dim)
+
     # Fractal XOR Phase
     temp_timer = perf_counter()
     fractal, misc_timer[4] = cf.getFractal(img)
@@ -111,6 +117,9 @@ def Encrypt():
     temp = gpuimgOut
     gpuimgOut = gpuimgIn
     gpuimgIn = temp
+
+    if cfg.DEBUG_IMAGES:
+        misc_timer[6] += cf.interImageWrite(gpuimgIn, "IN_2", len(imgArr), dim)
 
     # Permutation: ArMap-based intra-row/column rotation
     perf_timer[2] = perf_counter()
@@ -134,6 +143,9 @@ def Encrypt():
         gpuimgIn = gpuimgOut
         gpuimgOut = temp
     perf_timer[3] = perf_counter() - perf_timer[3]
+
+    if cfg.DEBUG_IMAGES:
+        misc_timer[6] += cf.interImageWrite(gpuimgIn, "IN_3", len(imgArr), dim)
 
     # Transfer vector back to host and reshape into encrypted output
     temp_timer = perf_counter()
@@ -163,6 +175,9 @@ def Encrypt():
         print("ArMap Misc:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[3], misc_timer[3]/overall_time*100)) 
         print("FracXOR Misc:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[4], misc_timer[4]/overall_time*100)) 
         print("Permute Misc:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[5], misc_timer[5]/overall_time*100))
+
+        if cfg.DEBUG_IMAGES:
+            print("Debug Images:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[6], misc_timer[6]/overall_time*100))
 
         print("\nNET TIME:\t{0:7.5f}s\n".format(overall_time))
     

@@ -13,9 +13,13 @@ chdir(cfg.PATH)
 
 # Driver function
 def Decrypt():
-    #Initialize Timer
+    #Initialize Timers
+    if cfg.DEBUG_IMAGES:
+        misc_timer = np.zeros(6)
+    else:
+        misc_timer = np.zeros(5)
+
     perf_timer = np.zeros(5)
-    misc_timer = np.zeros(5)
     overall_time = perf_counter()
 
     # Read input image
@@ -65,6 +69,9 @@ def Decrypt():
         gpuimgOut = temp
     perf_timer[1] = perf_counter() - perf_timer[1]
 
+    if cfg.DEBUG_IMAGES:
+        misc_timer[5] += cf.interImageWrite(gpuimgIn, "OUT_1", len(imgArr), dim)
+
     # Inverse Fractal XOR Phase
     temp_timer = perf_counter()
     fractal, misc_timer[3] = cf.getFractal(img, fracID)
@@ -81,6 +88,9 @@ def Decrypt():
     temp = gpuimgOut
     gpuimgOut = gpuimgIn
     gpuimgIn = temp
+
+    if cfg.DEBUG_IMAGES:
+        misc_timer[5] += cf.interImageWrite(gpuimgIn, "OUT_2", len(imgArr), dim)
 
     # Ar Phase: Cat-map Iterations
     misc_timer[4] = perf_counter()
@@ -109,11 +119,14 @@ def Decrypt():
     func(gpuimgIn, gpuimgOut, gpuShuffle, grid=(dim[0]*dim[1],1,1), block=(3,1,1))
     perf_timer[4] = perf_counter() - perf_timer[4]
 
+    if cfg.DEBUG_IMAGES:
+        misc_timer[5] += cf.interImageWrite(gpuimgOut, "OUT_3", len(imgArr), dim)
+
+    # Transfer vector back to host and reshape into original dimensions if needed
     temp_timer = perf_counter()
     cuda.memcpy_dtoh(imgArr, gpuimgOut)
     img = (np.reshape(imgArr,dim)).astype(np.uint8)
 
-    # Resize image to OG dimensions if needed
     if height!=width:
         img = cv2.resize(img,(height,width),interpolation=cv2.INTER_CUBIC)
         dim = img.shape
@@ -143,7 +156,10 @@ def Decrypt():
         print("FracXOR Misc:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[3], misc_timer[3]/overall_time*100)) 
         print("LUT Misc:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[4], misc_timer[4]/overall_time*100)) 
 
-        print("NET TIME:\t{0:7.5f}s\n".format(overall_time))
+        if cfg.DEBUG_IMAGES:
+            print("Debug Images:\t{0:9.7f}s ({1:5.2f}%)".format(misc_timer[5], misc_timer[5]/overall_time*100))
+
+        print("\nNET TIME:\t{0:7.5f}s\n".format(overall_time))
 
 Decrypt()
 cv2.waitKey(0)
