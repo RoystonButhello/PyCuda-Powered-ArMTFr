@@ -19,15 +19,10 @@ ENC_IN =  SRC + IMG + EXT               # Input image for encryption
 ENC_OUT = SRC + IMG + "_encrypted.png"  # Final Encrypted Image
 DEC_OUT = SRC + IMG + "_decrypted.png"  # Final Decrypted Image
 
-# Intermediary Images
+# Log Files
 LOG     = TEMP + "log.txt"          # Store Image Dimensions, Image Hash, ArMap Iterations
 P1LOG   = TEMP + "p1log.txt"        # Store parameters for column-rotation vector
 P2LOG   = TEMP + "p2log.txt"        # Store parameters for row-rotation vector
-ARMAP   = TEMP + "1armap.png"       # Arnold-mapped Image
-XOR     = TEMP + "2xor.png"         # XOR'd Image
-PERM    = TEMP + "3permute.png"     # Permuted Image
-UNPERM  = TEMP + "4unpermute.png"   # Un-Permuted Image
-UNXOR   = TEMP + "5unxor.png"       # Un-XOR'd Image
 
 #Flags
 DO_HISTEQ = False
