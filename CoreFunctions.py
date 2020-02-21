@@ -14,16 +14,6 @@ from pycuda.compiler import SourceModule
 
 os.chdir(cfg.PATH)
 
-# Returns the estimated ArMap cycle length
-def ArMapLen(n):
-    x, y = randint(0,n), randint(0,n)
-    x1, y1 = (2*x+y)%n, (x+y)%n
-    iterations = 1
-    while x!=x1 and y!=y1:
-        x1, y1 = (2*x1+y1)%n, (x1+y1)%n
-        iterations += 1
-    return iterations
-
 # Generate and return rotation vector of length n containing values < m
 def genRelocVec(m, n, logfile, ENC=True):
     # Initialize constants
@@ -73,37 +63,24 @@ def genRelocVec(m, n, logfile, ENC=True):
         vec[i] = np.uint16((ranF[i]*exp)%m)
     return vec
 
-# XOR Image with a Fractal
-def FracXor(img, fracID=-1):
-    # Read/Write fractal filename based on mode
-    if fracID==-1:
-        fileCount = len(os.listdir(cfg.FRAC))
-        fracID = (randint(0,img.shape[0]) % fileCount) + 1
-        with open(cfg.LOG, 'a+') as f:
-            f.write(str(fracID)+"\n")
-
-    #Read the file, resize it, then XOR
-    filename = cfg.FRAC + str(fracID) + ".png"
-    fractal = cv2.imread(filename, 1)
-    dim = img.shape
-    fractal = cv2.resize(fractal,(dim[1],dim[0]))
-    return cv2.bitwise_xor(img,fractal), 0.0
-
-def getFractal(img, fracID=-1):
+def getFractal(N, fracID=-1):
     timer = perf_counter()
+    '''
     # Read/Write fractal filename based on mode
     if fracID==-1:
         fileCount = len(os.listdir(cfg.FRAC))
-        fracID = (randint(0,img.shape[0]) % fileCount) + 1
+        fracID = (randint(0,N) % fileCount) + 1
         with open(cfg.LOG, 'a+') as f:
             f.write(str(fracID)+"\n")
 
     #Read the file, resize it, then XOR
     filename = cfg.FRAC + str(fracID) + ".png"
     fractal = cv2.imread(filename, 1)
-    dim = img.shape
     timer = perf_counter() - timer
-    return cv2.resize(fractal,(dim[1],dim[0])), timer
+    return cv2.resize(fractal,(N,N)), timer
+    '''
+    fractal =  cv2.imread("fractals\\Gradient.png")
+    return cv2.resize(fractal,(N,N)), perf_counter() - timer
 
 def interImageWrite(gpuImg, name, size, dim):
     timer = perf_counter()
@@ -163,5 +140,10 @@ mod = SourceModule("""
     {
         int idx = blockIdx.x * 3 + threadIdx.x;
         out[idx] = in[idx]^fractal[idx];
+    } 
+
+    __global__ void WarmUp()
+    {
+        return;
     } 
   """)
