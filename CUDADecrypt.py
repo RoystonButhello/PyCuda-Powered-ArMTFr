@@ -46,6 +46,11 @@ def Decrypt():
     cuda.memcpy_htod(gpuimgIn, imgArr)
     misc_timer[0] = perf_counter() - misc_timer[0] - misc_timer[1]
 
+    # Warm-Up GPU for accurate benchmarking
+    if cfg.DEBUG_TIMER:
+        funcTemp = cf.mod.get_function("WarmUp")
+        funcTemp(grid=(1,1,1), block=(1,1,1))
+    
     # Inverse Permutation: Intra-row/column rotation
     perf_timer[0] = perf_counter()
     U = cf.genRelocVec(dim[0],dim[1],cfg.P1LOG, ENC=False) # Col-rotation | len(U)=n, values from 0->m
@@ -60,13 +65,10 @@ def Decrypt():
     func = cf.mod.get_function("Dec_GenCatMap")
     misc_timer[2] = perf_counter() - misc_timer[2]
 
+    perf_timer[1] = perf_counter()
     for i in range(cfg.PERM_ROUNDS):
         func(gpuimgIn, gpuimgOut, gpuU, gpuV, grid=(dim[0],dim[1],1), block=(3,1,1))
-        if i==1:
-            perf_timer[1] = perf_counter()
-        temp = gpuimgIn
-        gpuimgIn = gpuimgOut
-        gpuimgOut = temp
+        gpuimgIn, gpuimgOut = gpuimgOut, gpuimgIn
     perf_timer[1] = perf_counter() - perf_timer[1]
 
     if cfg.DEBUG_IMAGES:
@@ -74,7 +76,7 @@ def Decrypt():
 
     # Inverse Fractal XOR Phase
     temp_timer = perf_counter()
-    fractal, misc_timer[3] = cf.getFractal(img, fracID)
+    fractal, misc_timer[3] = cf.getFractal(dim[0], fracID)
     fracArr  = np.asarray(fractal).reshape(-1)
     gpuFrac = cuda.mem_alloc(fracArr.nbytes)
     cuda.memcpy_htod(gpuFrac, fracArr)
@@ -85,9 +87,7 @@ def Decrypt():
     func(gpuimgIn, gpuimgOut, gpuFrac, grid=(dim[0]*dim[1],1,1), block=(3,1,1))
     perf_timer[2] = perf_counter() - perf_timer[2]
 
-    temp = gpuimgOut
-    gpuimgOut = gpuimgIn
-    gpuimgIn = temp
+    gpuimgIn, gpuimgOut = gpuimgOut, gpuimgIn
 
     if cfg.DEBUG_IMAGES:
         misc_timer[5] += cf.interImageWrite(gpuimgIn, "OUT_2", len(imgArr), dim)
@@ -102,13 +102,10 @@ def Decrypt():
     misc_timer[4] = perf_counter() - misc_timer[4]
 
     # Recalculate mapping to generate lookup table
+    perf_timer[3] = perf_counter()
     for i in range(rounds):
         func(gpuShuffIn, gpuShuffOut, grid=(dim[0],dim[1],1), block=(1,1,1))
-        if i==1:
-            perf_timer[3] = perf_counter()
-        temp = gpuShuffOut
-        gpuShuffOut = gpuShuffIn
-        gpuShuffIn = temp
+        gpuShuffIn, gpuShuffOut = gpuShuffOut, gpuShuffIn
     perf_timer[3] = perf_counter() - perf_timer[3]
 
     # Apply mapping

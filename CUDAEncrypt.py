@@ -5,6 +5,7 @@ import CONFIG as cfg        # Debug flags and constants
 import CoreFunctions as cf  # Common functions
 from shutil import rmtree   # Directory removal
 from time import perf_counter
+from random import randint
 
 #PyCUDA Import
 import pycuda.driver as cuda
@@ -42,16 +43,23 @@ def PreProcess():
     if img is None:
         print("File does not exist!")
         raise SystemExit(0)
-    dim = img.shape
+    # Pad Image so no. of rows and columns is even
+    for i in range(2):
+        dim_list = list(img.shape)
+        if dim_list[i]&1==1:
+            dim_list[i] = 1
+            line = np.empty(dim_list,dtype=np.uint8)
+            img = np.concatenate((img, line), axis=i)
     misc_timer[1] = perf_counter() - misc_timer[1]
 
+    # Write original dimensions to file
     misc_timer[2] = perf_counter()
-    # Write original dimensions to file and resize to square image if neccessary
+    dim = img.shape
     with open(cfg.LOG, 'w+') as f:
         f.write(str(dim[0]) + "\n")
         f.write(str(dim[1]) + "\n")
     misc_timer[2] = perf_counter() - misc_timer[2]
-    return img, dim, misc_timer
+    return img, img.shape, misc_timer
 
 # Driver function
 def Encrypt():
@@ -70,32 +78,34 @@ def Encrypt():
         dim = img.shape
 
     # Calculate no. of rounds
-    rounds = int(cf.ArMapLen(dim[0])/8) + 1
-    func = cf.mod.get_function("ArMapImg")
+    rounds = randint(8,16)
     misc_timer[3] = perf_counter() - misc_timer[3]
     
-    # Flatten image to vector and send to GPU
+    # Flatten image to vector,transfer to GPU
     temp_timer = perf_counter()
     imgArr = np.asarray(img).reshape(-1)
     gpuimgIn = cuda.mem_alloc(imgArr.nbytes)
     gpuimgOut = cuda.mem_alloc(imgArr.nbytes)
     cuda.memcpy_htod(gpuimgIn, imgArr)
+    func = cf.mod.get_function("ArMapImg")
     misc_timer[1] += perf_counter() - temp_timer
 
-    # Log no. of rounds
+    # Warm-Up GPU for accurate benchmarking
+    if cfg.DEBUG_TIMER:
+        funcTemp = cf.mod.get_function("WarmUp")
+        funcTemp(grid=(1,1,1), block=(1,1,1))
+
+    # Log no. of rounds of ArMapping
     temp_timer = perf_counter()
     with open(cfg.LOG, 'a+') as f:
         f.write(str(rounds)+"\n")
     misc_timer[2] += perf_counter() - temp_timer
 
     # Perform Arnold Mapping
+    perf_timer[0] = perf_counter()
     for i in range (max(rounds,5)):
         func(gpuimgIn, gpuimgOut, grid=(dim[0],dim[1],1), block=(3,1,1))
-        if i==1:
-            perf_timer[0] = perf_counter()
-        temp = gpuimgOut
-        gpuimgOut = gpuimgIn
-        gpuimgIn = temp
+        gpuimgIn, gpuimgOut = gpuimgOut, gpuimgIn
     perf_timer[0] = perf_counter() - perf_timer[0]
 
     if cfg.DEBUG_IMAGES:
@@ -103,7 +113,7 @@ def Encrypt():
 
     # Fractal XOR Phase
     temp_timer = perf_counter()
-    fractal, misc_timer[4] = cf.getFractal(img)
+    fractal, misc_timer[4] = cf.getFractal(dim[0])
     fracArr  = np.asarray(fractal).reshape(-1)
     gpuFrac = cuda.mem_alloc(fracArr.nbytes)
     cuda.memcpy_htod(gpuFrac, fracArr)
@@ -114,9 +124,7 @@ def Encrypt():
     func(gpuimgIn, gpuimgOut, gpuFrac, grid=(dim[0]*dim[1],1,1), block=(3,1,1))
     perf_timer[1] = perf_counter() - perf_timer[1]
 
-    temp = gpuimgOut
-    gpuimgOut = gpuimgIn
-    gpuimgIn = temp
+    gpuimgIn, gpuimgOut = gpuimgOut, gpuimgIn
 
     if cfg.DEBUG_IMAGES:
         misc_timer[6] += cf.interImageWrite(gpuimgIn, "IN_2", len(imgArr), dim)
@@ -127,6 +135,7 @@ def Encrypt():
     V = cf.genRelocVec(dim[1],dim[0],cfg.P2LOG, ENC=True) # Row-rotation | len(V)=m, values from 0->n
     perf_timer[2] = perf_counter() - perf_timer[2]
     
+    # Transfer rotation-vectors to GPU
     misc_timer[5] = perf_counter()
     gpuU = cuda.mem_alloc(U.nbytes)
     gpuV = cuda.mem_alloc(V.nbytes)
@@ -135,13 +144,11 @@ def Encrypt():
     func = cf.mod.get_function("Enc_GenCatMap")
     misc_timer[5] = perf_counter() - misc_timer[5]
 
+    # Perform permutation
+    perf_timer[3] = perf_counter()
     for i in range(cfg.PERM_ROUNDS):
         func(gpuimgIn, gpuimgOut, gpuU, gpuV, grid=(dim[0],dim[1],1), block=(3,1,1))
-        if i==1:
-            perf_timer[3] = perf_counter()
-        temp = gpuimgIn
-        gpuimgIn = gpuimgOut
-        gpuimgOut = temp
+        gpuimgIn, gpuimgOut = gpuimgOut, gpuimgIn
     perf_timer[3] = perf_counter() - perf_timer[3]
 
     if cfg.DEBUG_IMAGES:
